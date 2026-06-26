@@ -13,8 +13,14 @@ RUN npm install -g pnpm && pnpm install --frozen-lockfile
 # Copy source code
 COPY . .
 
-# Build the application (vite build + esbuild)
-RUN pnpm run build
+# Build the application (vite build + esbuild with CJS interop banner)
+RUN npx vite build && npx esbuild server/_core/index.ts \
+  --platform=node \
+  --packages=external \
+  --bundle \
+  --format=esm \
+  --banner:js="import { createRequire } from 'module'; const require = createRequire(import.meta.url);" \
+  --outdir=dist
 
 # Expose port
 EXPOSE 8080
