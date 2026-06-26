@@ -1,4 +1,6 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import { useIsMobile } from "@/hooks/useMobile";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { ConnectionStatusBanner } from "@/components/ConnectionStatusBanner";
 import { Navigation } from "@/components/Navigation";
 import { getLoginUrl } from "@/const";
@@ -9,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Send, Plus, Download, ChevronDown, ChevronUp, Copy, Check, Sparkles, BrainCircuit, User, Bot, MessageSquare, MoreHorizontal, Trash2 } from "lucide-react";
+import { Loader2, Send, Plus, Download, ChevronDown, ChevronUp, Copy, Check, Sparkles, BrainCircuit, User, Bot, MessageSquare, MoreHorizontal, Trash2, Menu } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useLocation, useRoute } from "wouter";
 import { Streamdown } from "streamdown";
@@ -79,7 +81,7 @@ const MessageBubble = ({
 
   return (
     <div className={`flex w-full ${isUser ? "justify-end" : "justify-start"} mb-6`}>
-      <div className={`flex max-w-[85%] min-w-0 ${isUser ? "flex-row-reverse" : "flex-row"} gap-3`}>
+      <div className={`flex max-w-[92%] sm:max-w-[85%] min-w-0 ${isUser ? "flex-row-reverse" : "flex-row"} gap-2 sm:gap-3`}>
         {/* Avatar */}
         <div className={`
           flex h-8 w-8 shrink-0 select-none items-center justify-center rounded-full border shadow-sm
@@ -138,6 +140,8 @@ const MessageBubble = ({
 
 export default function Chat() {
   const { user, loading: authLoading } = useAuth();
+  const isMobile = useIsMobile();
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const trpcUtils = trpc.useUtils();
   const [, navigate] = useLocation();
   const [, params] = useRoute("/chat/:id");
@@ -646,7 +650,7 @@ export default function Chat() {
         <ConnectionStatusBanner />
       </div>
 
-      <div className="container mx-auto px-4 py-4 flex gap-6 h-[calc(100vh-140px)]">
+      <div className="container mx-auto px-2 sm:px-4 py-2 sm:py-4 flex gap-6 h-[calc(100dvh-130px)] sm:h-[calc(100dvh-140px)]">
         {/* Sidebar - Desktop */}
         <aside className="hidden lg:flex w-72 flex-col gap-3 shrink-0 bg-slate-50 rounded-2xl border border-slate-300 p-3 shadow-sm overflow-hidden">
           <Button
@@ -701,20 +705,88 @@ export default function Chat() {
           </div>
         </aside>
 
+        {/* Mobile Sidebar Sheet */}
+        <Sheet open={mobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
+          <SheetContent side="left" className="w-72 p-0 flex flex-col">
+            <div className="flex flex-col gap-3 p-3 h-full">
+              <Button
+                onClick={() => { handleNewChat(); setMobileSidebarOpen(false); }}
+                className={`w-full justify-start gap-3 h-12 shadow-sm transition-all text-sm font-medium border shrink-0
+                  ${
+                    !currentConversationId
+                      ? "bg-blue-600 text-white border-blue-700 hover:bg-blue-700 shadow-blue-200"
+                      : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:text-slate-900 hover:border-slate-400"
+                  }
+                `}
+              >
+                <div className={`h-6 w-6 rounded-full flex items-center justify-center transition-colors
+                  ${!currentConversationId ? "bg-white/20 text-white" : "bg-blue-100/50 text-blue-600"}
+                `}>
+                  <Plus className="h-4 w-4" />
+                </div>
+                New Chat
+              </Button>
+              <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                <div className="px-2 py-2 flex items-center justify-between shrink-0">
+                  <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">History</h3>
+                </div>
+                <ScrollArea className="flex-1 -mx-1 px-1 h-full">
+                  <div className="space-y-1 pb-2">
+                    {conversations?.filter(conv => conv.title && conv.title.trim()).map((conv) => (
+                      <button
+                        key={conv.id}
+                        title={conv.title || "Conversation"}
+                        onClick={() => {
+                          setCurrentConversationId(conv.id);
+                          clearQueryResult();
+                          setQueryStage("analyzing");
+                          navigate(`/chat/${conv.id}`);
+                          setMobileSidebarOpen(false);
+                        }}
+                        className={`
+                          group w-full flex items-center gap-3 px-3 py-3 text-sm text-left rounded-xl transition-all duration-200 border
+                          ${currentConversationId === conv.id
+                            ? "bg-white border-blue-300 ring-1 ring-blue-100 shadow-sm text-blue-700 font-semibold z-10"
+                            : "border-transparent text-slate-600 hover:bg-white hover:border-slate-300 hover:shadow-sm hover:text-slate-900"
+                          }
+                        `}
+                      >
+                        <MessageSquare className={`h-4 w-4 shrink-0 transition-colors ${currentConversationId === conv.id ? "text-blue-600" : "text-slate-400 group-hover:text-slate-500"}`} />
+                        <div className="truncate flex-1 leading-snug">
+                          {conv.title || "Conversation"}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </div>
+            </div>
+          </SheetContent>
+        </Sheet>
+
         {/* Main Chat Area */}
         <main className="flex-1 flex flex-col min-h-0 bg-white rounded-2xl shadow-sm border border-slate-300 overflow-hidden relative">
           {/* Chat Header with Model Info & Export */}
-          <div className="flex items-center justify-between px-6 py-3 border-b border-slate-200 bg-white/95 backdrop-blur-sm sticky top-0 z-20">
-            <div className="flex items-center gap-3 overflow-hidden flex-1 mr-2">
+          <div className="flex items-center justify-between px-3 sm:px-6 py-2 sm:py-3 border-b border-slate-200 bg-white/95 backdrop-blur-sm sticky top-0 z-20">
+            <div className="flex items-center gap-2 sm:gap-3 overflow-hidden flex-1 mr-2">
+              {/* Mobile hamburger menu */}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="lg:hidden h-8 w-8 p-0 shrink-0"
+                onClick={() => setMobileSidebarOpen(true)}
+              >
+                <Menu className="h-5 w-5" />
+              </Button>
               <h3
-                className="font-semibold text-slate-700 truncate max-w-[300px] cursor-default"
+                className="font-semibold text-slate-700 truncate max-w-[160px] sm:max-w-[300px] cursor-default text-sm sm:text-base"
                 title={currentConversationId ? (conversations?.find(c => c.id === currentConversationId)?.title || 'New Chat') : 'New Chat'}
               >
                 {currentConversationId ? (conversations?.find(c => c.id === currentConversationId)?.title || 'Chat') : 'New Chat'}
               </h3>
 
               {activeConfig && (
-                <div className="flex items-center gap-2 text-xs shrink-0">
+                <div className="hidden sm:flex items-center gap-2 text-xs shrink-0">
                   <Badge variant="outline" className="gap-1 font-normal bg-background/50 text-xs px-2 py-0.5 h-6">
                     <Sparkles className="h-3 w-3 text-primary" />
                     {activeConfig.model.length > 25 ? activeConfig.model.substring(0, 22) + '...' : activeConfig.model}
@@ -785,22 +857,21 @@ export default function Chat() {
               )}
             </div>
           </div>
-          <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 min-h-0" ref={scrollRef}>
+          <div className="flex-1 overflow-y-auto overflow-x-hidden p-2 sm:p-4 min-h-0" ref={scrollRef}>
             {!currentConversationId ? (
-              <div className="h-full flex items-center justify-center">
-                <div className="text-center max-w-2xl">
-                  <Database className="h-16 w-16 mx-auto mb-4 text-blue-600" />
-                  <h2 className="text-2xl font-semibold mb-2">Welcome to D365 F&O Data Agent</h2>
-                  <p className="text-muted-foreground mb-6">
+              <div className="h-full flex items-center justify-center px-2">
+                <div className="text-center max-w-2xl w-full">
+                  <Database className="h-10 w-10 sm:h-16 sm:w-16 mx-auto mb-3 sm:mb-4 text-blue-600" />
+                  <h2 className="text-lg sm:text-2xl font-semibold mb-2">Welcome to D365 F&O Data Agent</h2>
+                  <p className="text-muted-foreground mb-4 sm:mb-6 text-sm sm:text-base">
                     Ask questions about your Dynamics 365 Finance and Operations data in natural language.
-                    I'll generate SQL queries and retrieve the information you need.
                   </p>
                   <div className="text-left space-y-2 text-sm text-muted-foreground">
-                    <p>Example questions:</p>
+                    <p className="font-medium">Try asking:</p>
                     <ul className="list-disc list-inside space-y-1">
                       <li>Show me all purchase orders from last month</li>
                       <li>Why can't we ship to customer ABC123?</li>
-                      <li>Which purchase orders could impact the production process?</li>
+                      <li>Which purchase orders could impact production?</li>
                     </ul>
                   </div>
                 </div>
@@ -879,9 +950,9 @@ export default function Chat() {
                   <div className="flex justify-start w-full">
                     <div className="w-full max-w-2xl">
                       <div className="border rounded-lg p-4 bg-white shadow-sm">
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center gap-3">
-                            <h3 className="font-semibold">Query Results ({queryResult.rowCount} rows)</h3>
+                          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h3 className="font-semibold text-sm sm:text-base">Query Results ({queryResult.rowCount} rows)</h3>
                             {availableCompanies.length > 0 && (
                               <select
                                 value={companyFilter}
@@ -895,10 +966,10 @@ export default function Chat() {
                               </select>
                             )}
                           </div>
-                          <div className="flex gap-2">
+                          <div className="flex gap-2 flex-wrap">
                             <Button onClick={() => setSqlModalOpen(true)} size="sm" variant="outline">
                               <Code className="h-4 w-4 mr-2" />
-                              View SQL
+                              <span className="hidden sm:inline">View </span>SQL
                             </Button>
                             <Button
                               onClick={() => {
@@ -941,7 +1012,7 @@ export default function Chat() {
                         
                         {queryResult.data && queryResult.data.length > 0 ? (
                           <>
-                            <div className="border rounded-lg overflow-auto max-h-96">
+                            <div className="border rounded-lg overflow-auto max-h-64 sm:max-h-96">
                               <Table>
                                 <TableHeader>
                                   <TableRow>
@@ -1113,8 +1184,8 @@ export default function Chat() {
           )}
 
           {/* Input Area */}
-          <div className="border-t border-slate-100 p-4 bg-white/50 backdrop-blur-sm">
-            <form onSubmit={handleSubmit} className="flex gap-3 items-end max-w-4xl mx-auto w-full">
+          <div className="border-t border-slate-100 p-2 sm:p-4 bg-white/50 backdrop-blur-sm">
+            <form onSubmit={handleSubmit} className="flex gap-2 sm:gap-3 items-end max-w-4xl mx-auto w-full">
               <div className="relative flex-1 bg-white rounded-xl shadow-sm border border-slate-200 focus-within:ring-2 focus-within:ring-blue-500/10 focus-within:border-blue-500/50 transition-all">
                 <Textarea
                   ref={inputRef}
@@ -1127,9 +1198,9 @@ export default function Chat() {
                       handleSubmit(e);
                     }
                   }}
-                  placeholder="Ask a question about your D365 data... (Shift+Enter for new line, type / for templates)"
+                  placeholder="Ask about your D365 data..."
                   disabled={isSubmitting}
-                  className="w-full min-h-[60px] max-h-[200px] resize-none border-0 focus-visible:ring-0 bg-transparent py-4 px-4 placeholder:text-slate-400"
+                  className="w-full min-h-[48px] sm:min-h-[60px] max-h-[150px] sm:max-h-[200px] resize-none border-0 focus-visible:ring-0 bg-transparent py-3 sm:py-4 px-3 sm:px-4 placeholder:text-slate-400 text-sm"
                   rows={2}
                 />
                 <SlashCommandMenu
@@ -1145,7 +1216,7 @@ export default function Chat() {
               <Button
                 type="submit"
                 disabled={!input.trim() || isSubmitting}
-                className={`h-[60px] w-[60px] rounded-xl shadow-sm transition-all ${!input.trim() || isSubmitting ? "bg-slate-100 text-slate-400" : "bg-blue-600 hover:bg-blue-700 text-white shadow-blue-600/20"
+                className={`h-[48px] w-[48px] sm:h-[60px] sm:w-[60px] rounded-xl shadow-sm transition-all shrink-0 ${!input.trim() || isSubmitting ? "bg-slate-100 text-slate-400" : "bg-blue-600 hover:bg-blue-700 text-white shadow-blue-600/20"
                   }`}
               >
                 {isSubmitting ? (
