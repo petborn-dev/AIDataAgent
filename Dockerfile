@@ -31,9 +31,6 @@ RUN npm install -g pnpm && pnpm install --frozen-lockfile --prod
 # Copy built artifacts from builder stage
 COPY --from=builder /app/dist ./dist
 
-# Copy any static assets or data needed at runtime
-COPY --from=builder /app/client/public ./client/public 2>/dev/null || true
-
 # Expose port
 EXPOSE 8080
 
