@@ -1,11 +1,11 @@
 /**
  * Unified Navigation Component
  *
- * Provides consistent navigation across all pages with:
- * - Clear visual hierarchy
- * - Descriptive tooltips
- * - Responsive design
- * - Active route highlighting
+ * Regular portal navigation with:
+ * - Chat (all users)
+ * - DB Connection (admin only)
+ * - Settings (admin only)
+ * - Admin (admin only)
  */
 
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -18,15 +18,10 @@ import {
 import {
   Database,
   MessageSquare,
-  FileText,
-  History,
   Settings,
-  TestTube,
   LogOut,
   Menu,
   X,
-  ListChecks,
-  TrendingUp,
   Shield,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
@@ -38,6 +33,7 @@ interface NavItem {
   label: string;
   description: string;
   icon: React.ReactNode;
+  adminOnly?: boolean;
 }
 
 const navItems: NavItem[] = [
@@ -48,52 +44,25 @@ const navItems: NavItem[] = [
     icon: <MessageSquare className="h-5 w-5" />,
   },
   {
-    path: "/metadata",
-    label: "Metadata",
-    description: "Upload and browse D365 table structures",
-    icon: <FileText className="h-5 w-5" />,
-  },
-  {
     path: "/db-connection",
     label: "DB Connection",
     description: "Configure and test database connections",
     icon: <Database className="h-5 w-5" />,
-  },
-  {
-    path: "/history",
-    label: "History",
-    description: "View query execution history and results",
-    icon: <History className="h-5 w-5" />,
-  },
-  {
-    path: "/execution-history",
-    label: "Multi-Step History",
-    description: "View and replay multi-step query executions",
-    icon: <ListChecks className="h-5 w-5" />,
-  },
-  {
-    path: "/execution-analytics",
-    label: "Analytics",
-    description: "View multi-step execution metrics and insights",
-    icon: <TrendingUp className="h-5 w-5" />,
-  },
-  {
-    path: "/table-rules",
-    label: "Table Rules",
-    description: "Manage AI query generation rules for tables",
-    icon: <Shield className="h-5 w-5" />,
+    adminOnly: true,
   },
   {
     path: "/settings",
     label: "Settings",
     description: "Configure database connections and LLM providers",
     icon: <Settings className="h-5 w-5" />,
+    adminOnly: true,
   },
   {
     path: "/admin",
     label: "Admin",
     description: "Manage RAG indexing and system configuration",
-    icon: <Settings className="h-5 w-5" />,
+    icon: <Shield className="h-5 w-5" />,
+    adminOnly: true,
   },
 ];
 
@@ -105,6 +74,12 @@ export function Navigation() {
   if (!user) {
     return null;
   }
+
+  const isAdmin = user.role === "admin";
+
+  const visibleItems = navItems.filter(
+    (item) => !item.adminOnly || isAdmin
+  );
 
   const isActive = (path: string) => {
     if (path === "/chat") {
@@ -127,7 +102,7 @@ export function Navigation() {
 
           {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center gap-2 flex-1 justify-center">
-            {navItems.map((item) => (
+            {visibleItems.map((item) => (
               <Tooltip key={item.path}>
                 <TooltipTrigger asChild>
                   <Link href={item.path}>
@@ -153,7 +128,6 @@ export function Navigation() {
               </Tooltip>
             ))}
           </nav>
-
 
           {/* User Menu */}
           <div className="flex items-center gap-2">
@@ -199,7 +173,7 @@ export function Navigation() {
         {mobileMenuOpen && (
           <nav className="md:hidden mt-4 pb-4 border-t pt-4">
             <div className="flex flex-col gap-2">
-              {navItems.map((item) => (
+              {visibleItems.map((item) => (
                 <Link key={item.path} href={item.path}>
                   <Button
                     variant={isActive(item.path) ? "default" : "ghost"}
