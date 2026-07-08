@@ -79,7 +79,7 @@ export class TwoStageQueryGenerator {
     }
 
     logStage(logSessionId, QueryStage.PROMPT_BUILDING, "Starting Stage 2: SQL generation");
-    const stage2Result = await this.stage2_GenerateSql(userQuery, stage1Result.tables!, knowledgeBaseData, logSessionId);
+    const stage2Result = await this.stage2_GenerateSql(userQuery, stage1Result.tables!, knowledgeBaseData, logSessionId, conversationHistory);
     
     // Save to cache
     await queryCacheService.saveQuery(
@@ -248,7 +248,8 @@ export class TwoStageQueryGenerator {
     userQuery: string, 
     tables: string[], 
     knowledgeBaseData?: Array<{ tableName: string; comments: any[] }>, // 🆕 Receive correction data
-    logSessionId?: string
+    logSessionId?: string,
+    conversationHistory?: Array<{ role: string; content: string }>
   ): Promise<{
     sql: string;
     explanation: string;
@@ -309,6 +310,17 @@ export class TwoStageQueryGenerator {
       }
     }
     
+    // Build conversation context block from prior messages (last 6 turns max to stay within token budget)
+    let conversationContext = '';
+    if (conversationHistory && conversationHistory.length > 0) {
+      const recentHistory = conversationHistory.slice(-6);
+      conversationContext = `\n## Conversation History (most recent turns)\nUse this to understand prior queries, results, and any contradictions the user is asking about.\n\n`;
+      for (const msg of recentHistory) {
+        conversationContext += `[${msg.role.toUpperCase()}]: ${msg.content}\n\n`;
+      }
+      conversationContext += `---\nIMPORTANT: If the user is asking about a contradiction or discrepancy between previous results, \nyour SQL must be designed to reconcile those results — not simply re-run one of the prior queries.\n`;
+    }
+
     const systemPrompt = `You are an expert SQL query generator for Microsoft Dynamics 365 F&O.
 
 DATABASE: SQL Server (T-SQL syntax)
@@ -321,7 +333,7 @@ RULES:
 ${preCorrectionHints}
 
 ${knowledgeBaseContext}
-
+${conversationContext}
 Available Tables:
 ${tableSchemas}
 
@@ -352,9 +364,21 @@ CRITICAL: Return ONLY valid JSON format. No extra text or explanations outside J
         );
       }
       
+      // Build messages array: system prompt + last 6 history turns (as user/assistant) + current query
+      const historyMessages: Array<{ role: 'user' | 'assistant'; content: string }> = [];
+      if (conversationHistory && conversationHistory.length > 0) {
+        const recentHistory = conversationHistory.slice(-6);
+        for (const msg of recentHistory) {
+          if (msg.role === 'user' || msg.role === 'assistant') {
+            historyMessages.push({ role: msg.role as 'user' | 'assistant', content: msg.content });
+          }
+        }
+      }
+
       const response = await invokeLLM({
         messages: [
           { role: 'system' as const, content: systemPrompt },
+          ...historyMessages,
           { role: 'user' as const, content: userQuery }
         ],
         maxTokens: 1000

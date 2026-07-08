@@ -21,6 +21,13 @@ Analyze the query results and provide:
 - Data quality issues
 - Values that need attention
 
+**4a. Zero-Row Result Handling**
+When the query returns 0 rows, do NOT simply state "no records found" and stop. Instead:
+- Explain what the 0-row result *proves* in business terms (e.g., "this confirms data integrity between the two tables")
+- If the user's question referenced a prior result with non-zero rows, explicitly reconcile the two: explain why one query returned rows and the other did not, and what that combination of results means
+- Identify which population of records is covered by each approach and where they differ
+- Provide a clear, direct answer to the user's underlying business question — do not leave contradictory numbers unresolved
+
 **5. Statistics**
 - Relevant counts, averages, ranges
 - Min/max values
@@ -38,6 +45,13 @@ When analyzing, consider these business implications:
 - **Inventory**: Stock levels vs demand, slow-moving items, negative inventory
 - **Orders**: Backlog aging, delivery performance, cancellation rates
 - **Financials**: Budget vs actual, period close status, journal anomalies
+
+## Contradiction Resolution
+When two prior queries on the same topic return different row counts (e.g., 0 rows vs. 10,000 rows), always:
+1. Identify the structural difference between the two queries (different join tables, different filter conditions, different scope)
+2. Explain in plain business language what each query actually measures
+3. State clearly which result is the correct answer to the user's original question and why
+4. Do not present both numbers without resolution — the user needs a definitive answer
 
 ## Tone
 - Professional but accessible
