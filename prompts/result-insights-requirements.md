@@ -15,6 +15,14 @@ Analyze the query results and provide:
 - Time-based trends
 - Distribution patterns
 
+**3a. Year-over-Year / Trend Analysis** (apply when data contains Year, LastYear/ThisYear columns, or monthly breakdown)
+- State the growth rate explicitly: "[Metric] grew by Y% from last year to this year" or "declined by Y%"
+- Identify which metrics improved vs. declined
+- Highlight the month or period with the largest change
+- Compare both absolute values AND percentage changes side by side
+- Flag any metric where this year is significantly below last year (>20% decline = needs attention)
+- If multiple metrics are present (e.g., order count + spend + vendor count), analyze each independently
+
 **4. Anomalies**
 - Unusual or unexpected values
 - Outliers

@@ -810,8 +810,30 @@ export async function generateSqlQuery(
 
       // Check for date range queries
       if (/\b(last|previous|date|month|year|from|to|between)\b/i.test(naturalLanguageQuery)) {
-        hints.push("This query involves date filtering. Check for date fields like CreatedDateTime, ModifiedDateTime, or business-specific date fields.");
+        hints.push("This query involves date filtering. Check for date fields like CreatedDateTime, ModifiedDateTime, TransDate, or InvoiceDate depending on the table.");
         reasoningTracker.addHint("Apply appropriate date range filtering");
+      }
+
+      // Check for YoY / trend / multi-metric comparison queries
+      const queryLowerHint = naturalLanguageQuery.toLowerCase();
+      const isYoYHint =
+        queryLowerHint.includes('last year') ||
+        queryLowerHint.includes('this year') ||
+        queryLowerHint.includes('yoy') ||
+        queryLowerHint.includes('year over year') ||
+        queryLowerHint.includes('year-over-year') ||
+        queryLowerHint.includes('trend') ||
+        queryLowerHint.includes('compare') ||
+        queryLowerHint.includes(' vs ') ||
+        queryLowerHint.includes('growth') ||
+        queryLowerHint.includes('previous year');
+      if (isYoYHint) {
+        hints.push(
+          'TREND/YoY QUERY: Use CASE WHEN YEAR(dateField) = YEAR(GETDATE()) - 1 for last year and YEAR(GETDATE()) for this year. ' +
+          'Include a GrowthPct column. Use WHERE YEAR(dateField) IN (YEAR(GETDATE()) - 1, YEAR(GETDATE())). ' +
+          'For multiple metrics, use one SQL with CASE pivots or CTEs — do NOT split into separate queries.'
+        );
+        reasoningTracker.addHint('Apply YoY CASE pivot pattern for trend comparison');
       }
 
       // Check for join-heavy queries

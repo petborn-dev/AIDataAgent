@@ -321,26 +321,72 @@ export class TwoStageQueryGenerator {
       conversationContext += `---\nIMPORTANT: If the user is asking about a contradiction or discrepancy between previous results, \nyour SQL must be designed to reconcile those results — not simply re-run one of the prior queries.\n`;
     }
 
-    const systemPrompt = `You are an expert SQL query generator for Microsoft Dynamics 365 F&O.
+        // Detect if this is a YoY / trend / multi-metric query to expand token budget
+    const queryLowerForDetect = userQuery.toLowerCase();
+    const isComplexTrendQuery =
+      queryLowerForDetect.includes('last year') ||
+      queryLowerForDetect.includes('this year') ||
+      queryLowerForDetect.includes('yoy') ||
+      queryLowerForDetect.includes('year over year') ||
+      queryLowerForDetect.includes('year-over-year') ||
+      queryLowerForDetect.includes('trend') ||
+      queryLowerForDetect.includes('compare') ||
+      queryLowerForDetect.includes('comparison') ||
+      queryLowerForDetect.includes(' vs ') ||
+      queryLowerForDetect.includes('growth') ||
+      queryLowerForDetect.includes('previous year') ||
+      queryLowerForDetect.includes('multiple') ||
+      queryLowerForDetect.includes('monthly');
 
+    const yoyGuidance = isComplexTrendQuery ? `
+## TREND / YEAR-OVER-YEAR QUERY GUIDANCE
+This query compares data across time periods. Use these T-SQL patterns:
+
+### Side-by-side YoY (RECOMMENDED for multiple metrics):
+SELECT
+  SUM(CASE WHEN YEAR(dateField) = YEAR(GETDATE()) - 1 THEN amount ELSE 0 END) AS [LastYear_Amount],
+  SUM(CASE WHEN YEAR(dateField) = YEAR(GETDATE())     THEN amount ELSE 0 END) AS [ThisYear_Amount],
+  COUNT(CASE WHEN YEAR(dateField) = YEAR(GETDATE()) - 1 THEN 1 END) AS [LastYear_Count],
+  COUNT(CASE WHEN YEAR(dateField) = YEAR(GETDATE())     THEN 1 END) AS [ThisYear_Count],
+  CAST((SUM(CASE WHEN YEAR(dateField) = YEAR(GETDATE()) THEN amount ELSE 0 END)
+        - SUM(CASE WHEN YEAR(dateField) = YEAR(GETDATE()) - 1 THEN amount ELSE 0 END))
+       * 100.0 / NULLIF(SUM(CASE WHEN YEAR(dateField) = YEAR(GETDATE()) - 1 THEN amount ELSE 0 END), 0)
+       AS DECIMAL(10,2)) AS [GrowthPct]
+FROM table
+WHERE YEAR(dateField) IN (YEAR(GETDATE()) - 1, YEAR(GETDATE()))
+
+### Monthly breakdown for both years:
+SELECT YEAR(dateField) AS [Year], MONTH(dateField) AS [Month], COUNT(*), SUM(amount)
+FROM table
+WHERE YEAR(dateField) IN (YEAR(GETDATE()) - 1, YEAR(GETDATE()))
+GROUP BY YEAR(dateField), MONTH(dateField)
+ORDER BY [Year], [Month]
+
+### Date field selection:
+- VendTrans, CustTrans, InventTrans: use TransDate
+- PurchTable, SalesTable: use CreatedDateTime
+- VendInvoiceJour: use InvoiceDate
+
+IMPORTANT: Generate ONE SQL with CASE pivots or CTEs. Do NOT split into multiple queries.
+` : '';
+
+    const systemPrompt = `You are an expert SQL query generator for Microsoft Dynamics 365 F&O.
 DATABASE: SQL Server (T-SQL syntax)
+Current date: ${new Date().toISOString().split('T')[0]}
 RULES:
 - Use TOP clause (not LIMIT)
 - Use GETDATE() for current date
 - Use proper table/field names from D365 F&O
 - Generate syntactically correct T-SQL
-
+- NEVER use DATE_TRUNC, INTERVAL, EXTRACT, LIMIT, NOW() — T-SQL only
 ${preCorrectionHints}
-
+${yoyGuidance}
 ${knowledgeBaseContext}
 ${conversationContext}
 Available Tables:
 ${tableSchemas}
-
 Generate a SQL query to answer: "${userQuery}"
-
 CRITICAL: Return ONLY valid JSON format. No extra text or explanations outside JSON.
-
 {
   "sql": "SELECT TOP 50 ...",
   "explanation": "Brief explanation",
@@ -375,13 +421,17 @@ CRITICAL: Return ONLY valid JSON format. No extra text or explanations outside J
         }
       }
 
+      // Use larger token budget for complex trend/YoY queries
+      const stage2MaxTokens = isComplexTrendQuery ? 2500 : 1200;
+      console.log(`[Stage 2] Token budget: ${stage2MaxTokens} (complex trend: ${isComplexTrendQuery})`);
+
       const response = await invokeLLM({
         messages: [
           { role: 'system' as const, content: systemPrompt },
           ...historyMessages,
           { role: 'user' as const, content: userQuery }
         ],
-        maxTokens: 1000
+        maxTokens: stage2MaxTokens
       });
       
       const elapsed = Date.now() - startTime;
@@ -464,7 +514,7 @@ CRITICAL: Return ONLY valid JSON format. No extra text or explanations outside J
         sql: result.sql,
         explanation: result.explanation || 'Generated SQL query',
         confidence: result.confidence || 'medium',
-        tokensUsed: 1000
+        tokensUsed: stage2MaxTokens
       };
       
     } catch (error: any) {

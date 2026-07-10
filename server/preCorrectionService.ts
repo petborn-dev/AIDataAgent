@@ -31,7 +31,36 @@ export class PreCorrectionService {
       hints += `**CRITICAL**: Always use BuyerGroupId field for purchasing group queries.\n\n`;
     }
     
-    // 3. Check other common correction patterns
+    // 3. Check YoY / trend / multi-metric comparison queries
+    const isYoYQuery =
+      queryLower.includes('last year') ||
+      queryLower.includes('this year') ||
+      queryLower.includes('yoy') ||
+      queryLower.includes('year over year') ||
+      queryLower.includes('year-over-year') ||
+      queryLower.includes('trend') ||
+      queryLower.includes('compare') ||
+      queryLower.includes('comparison') ||
+      queryLower.includes(' vs ') ||
+      queryLower.includes('vs.') ||
+      queryLower.includes('growth') ||
+      queryLower.includes('change from') ||
+      queryLower.includes('previous year') ||
+      (queryLower.includes('multiple') && (queryLower.includes('metric') || queryLower.includes('data')));
+
+    if (isYoYQuery) {
+      hints += `\n## IMPORTANT: Year-over-Year / Trend Query Detected\n`;
+      hints += `This query requires comparing data across two time periods (last year vs. this year).\n`;
+      hints += `**CRITICAL SQL STRATEGY**:\n`;
+      hints += `- Use CASE WHEN YEAR(dateField) = YEAR(GETDATE()) - 1 THEN value ELSE 0 END for last year\n`;
+      hints += `- Use CASE WHEN YEAR(dateField) = YEAR(GETDATE()) THEN value ELSE 0 END for this year\n`;
+      hints += `- Include a GrowthPct column: (ThisYear - LastYear) * 100.0 / NULLIF(LastYear, 0)\n`;
+      hints += `- Filter: WHERE YEAR(dateField) IN (YEAR(GETDATE()) - 1, YEAR(GETDATE()))\n`;
+      hints += `- For MULTIPLE metrics: use a CTE or CASE pivot — do NOT generate separate queries\n`;
+      hints += `- Date fields: TransDate for *Trans tables; CreatedDateTime for PurchTable/SalesTable\n\n`;
+    }
+
+    // 4. Check other common correction patterns
     const otherCorrections = await this.getCommonCorrections(query);
     if (otherCorrections) {
       hints += otherCorrections;
